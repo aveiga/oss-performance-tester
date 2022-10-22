@@ -24,8 +24,7 @@ type MessagingClient struct {
 }
 
 func NewMessagingClient(connectionString string) *MessagingClient {
-	var err error
-	conn, err := amqp.Dial(fmt.Sprintf("%s/", connectionString))
+	conn, err := amqp.Dial(connectionString)
 	if err != nil {
 		panic("Failed to connect to AMQP compatible broker at: " + connectionString)
 	}
