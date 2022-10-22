@@ -18,3 +18,7 @@
 ### Access the local RabbitMQ UI
 
 - `http://localhost:15672`
+
+## References
+- [Cobra User Guide](https://github.com/spf13/cobra/blob/main/user_guide.md)
+- [Cobra Generator](https://github.com/spf13/cobra-cli/blob/main/README.md)
