@@ -77,7 +77,7 @@ func (m *MessagingClient) Publish(body []byte, exchangeName string, exchangeType
 		amqp.Publishing{
 			Body: body, // Our JSON body as []byte
 		})
-	m.logger.Debugf("A message was sent: %v", body)
+	// fmt.Printf("A message was sent: %v", body)
 	return err
 }
 
@@ -107,7 +107,7 @@ func (m *MessagingClient) PublishOnQueue(body []byte, queueName string) error {
 			ContentType: "application/json",
 			Body:        body, // Our JSON body as []byte
 		})
-	m.logger.Debugf("A message was sent to queue %v: %v", queueName, body)
+	// fmt.Printf("A message was sent to queue %v: %v", queueName, body)
 	return err
 }
 
@@ -127,7 +127,7 @@ func (m *MessagingClient) Subscribe(exchangeName string, exchangeType string, co
 	)
 	failOnError(err, "Failed to register an Exchange")
 
-	m.logger.Debugf("declared Exchange, declaring Queue (%s)", "")
+	fmt.Printf("declared Exchange, declaring Queue (%s)", "")
 	queue, err := ch.QueueDeclare(
 		"",    // name of the queue
 		false, // durable
@@ -138,7 +138,7 @@ func (m *MessagingClient) Subscribe(exchangeName string, exchangeType string, co
 	)
 	failOnError(err, "Failed to register an Queue")
 
-	m.logger.Debugf("declared Queue (%d messages, %d consumers), binding to Exchange (key '%s')",
+	fmt.Printf("declared Queue (%d messages, %d consumers), binding to Exchange (key '%s')",
 		queue.Messages, queue.Consumers, exchangeName)
 
 	err = ch.QueueBind(
@@ -171,7 +171,7 @@ func (m *MessagingClient) SubscribeToQueue(queueName string, consumerName string
 	ch, err := m.conn.Channel()
 	failOnError(err, "Failed to open a channel")
 
-	m.logger.Debugf("Declaring Queue (%s)", queueName)
+	fmt.Printf("Declaring Queue (%s)", queueName)
 	queue, err := ch.QueueDeclare(
 		queueName, // name of the queue
 		false,     // durable
