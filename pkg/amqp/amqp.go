@@ -69,6 +69,11 @@ func (m *MessagingClient) Publish(body []byte, exchange *Exchange, queue *Queue)
 	}
 	defer ch.Close()
 
+	exchangeArgs := amqp.Table{}
+	for i := 0; i < len(exchange.Arguments); i++ {
+		exchangeArgs[exchange.Arguments[i].ArgumentKey] = exchange.Arguments[i].ArgumentValue
+	}
+
 	err = ch.ExchangeDeclare(
 		exchange.ExchangeName, // name of the exchange
 		exchange.ExchangeType, // type
@@ -76,9 +81,14 @@ func (m *MessagingClient) Publish(body []byte, exchange *Exchange, queue *Queue)
 		exchange.AutoDelete,   // delete when complete
 		exchange.Internal,     // internal
 		exchange.Internal,     // noWait
-		nil,                   // arguments
+		exchangeArgs,          // arguments
 	)
 	failOnError(err, "Failed to register an Exchange")
+
+	queueArgs := amqp.Table{}
+	for i := 0; i < len(queue.Arguments); i++ {
+		queueArgs[queue.Arguments[i].ArgumentKey] = queue.Arguments[i].ArgumentValue
+	}
 
 	_, err = ch.QueueDeclare( // Declare a queue that will be created if not exists with some args
 		queue.QueueName,  // our queue name
@@ -86,7 +96,7 @@ func (m *MessagingClient) Publish(body []byte, exchange *Exchange, queue *Queue)
 		queue.AutoDelete, // delete when unused
 		queue.Exclusive,  // exclusive
 		queue.NoWait,     // no-wait
-		nil,              // arguments
+		queueArgs,        // arguments
 	)
 	if err != nil {
 		m.logger.Fatal("Failed declaring a queue", err)
@@ -159,6 +169,11 @@ func (m *MessagingClient) Subscribe(exchange *Exchange, queue *Queue, consumerNa
 	failOnError(err, "Failed to open a channel")
 	// defer ch.Close()
 
+	exchangeArgs := amqp.Table{}
+	for i := 0; i < len(exchange.Arguments); i++ {
+		exchangeArgs[exchange.Arguments[i].ArgumentKey] = exchange.Arguments[i].ArgumentValue
+	}
+
 	err = ch.ExchangeDeclare(
 		exchange.ExchangeName, // name of the exchange
 		exchange.ExchangeType, // type
@@ -166,9 +181,14 @@ func (m *MessagingClient) Subscribe(exchange *Exchange, queue *Queue, consumerNa
 		exchange.AutoDelete,   // delete when complete
 		exchange.Internal,     // internal
 		exchange.NoWait,       // noWait
-		nil,                   // arguments
+		exchangeArgs,          // arguments
 	)
 	failOnError(err, "Failed to register an Exchange")
+
+	queueArgs := amqp.Table{}
+	for i := 0; i < len(queue.Arguments); i++ {
+		queueArgs[queue.Arguments[i].ArgumentKey] = queue.Arguments[i].ArgumentValue
+	}
 
 	fmt.Printf("declared Exchange, declaring Queue (%s)", "")
 	declaredQueue, err := ch.QueueDeclare(
@@ -177,7 +197,7 @@ func (m *MessagingClient) Subscribe(exchange *Exchange, queue *Queue, consumerNa
 		queue.AutoDelete, // delete when usused
 		queue.Exclusive,  // exclusive
 		queue.Exclusive,  // noWait
-		nil,              // arguments
+		queueArgs,        // arguments
 	)
 	failOnError(err, "Failed to register an Queue")
 

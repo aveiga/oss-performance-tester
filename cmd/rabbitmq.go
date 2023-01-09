@@ -22,7 +22,11 @@ type DeclarationJson struct {
 	AutoDelete   bool
 	Internal     bool
 	NoWait       bool
-	Queue        struct {
+	Arguments    []struct {
+		ArgumentKey   string
+		ArgumentValue string
+	}
+	Queue struct {
 		QueueName  string
 		Durable    bool
 		AutoDelete bool
@@ -111,6 +115,7 @@ func SetupComplexProducer(client *amqp.MessagingClient, payload []byte, declarat
 			AutoDelete:   declaration.AutoDelete,
 			Internal:     declaration.Internal,
 			NoWait:       declaration.NoWait,
+			Arguments:    declaration.Arguments,
 		}
 		queue := amqp.Queue{
 			QueueName:  declaration.Queue.QueueName,
@@ -118,6 +123,7 @@ func SetupComplexProducer(client *amqp.MessagingClient, payload []byte, declarat
 			AutoDelete: declaration.Queue.AutoDelete,
 			Exclusive:  declaration.Queue.Exclusive,
 			NoWait:     declaration.Queue.NoWait,
+			Arguments:  declaration.Queue.Arguments,
 		}
 		err := client.Publish(payload, &exchange, &queue)
 		if err != nil {
@@ -141,6 +147,7 @@ func SetupComplexConsumer(client *amqp.MessagingClient, declaration DeclarationJ
 		AutoDelete:   declaration.AutoDelete,
 		Internal:     declaration.Internal,
 		NoWait:       declaration.NoWait,
+		Arguments:    declaration.Arguments,
 	}
 	queue := amqp.Queue{
 		QueueName:  declaration.Queue.QueueName,
@@ -148,6 +155,7 @@ func SetupComplexConsumer(client *amqp.MessagingClient, declaration DeclarationJ
 		AutoDelete: declaration.Queue.AutoDelete,
 		Exclusive:  declaration.Queue.Exclusive,
 		NoWait:     declaration.Queue.NoWait,
+		Arguments:  declaration.Queue.Arguments,
 	}
 	err := client.Subscribe(&exchange, &queue, "Load Tester", func(d amqp091.Delivery) {})
 	if err != nil {
