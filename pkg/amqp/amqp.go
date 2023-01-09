@@ -3,7 +3,7 @@ package amqp
 import (
 	"fmt"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
 
@@ -15,6 +15,31 @@ type IMessagingClient interface {
 	Subscribe(exchangeName string, exchangeType string, consumerName string, handlerFunc func(amqp.Delivery)) error
 	SubscribeToQueue(queueName string, consumerName string, handlerFunc func(amqp.Delivery)) error
 	Close()
+}
+
+type Exchange struct {
+	ExchangeName string
+	ExchangeType string
+	Durable      bool
+	AutoDelete   bool
+	Internal     bool
+	NoWait       bool
+	Arguments    []struct {
+		ArgumentKey   string
+		ArgumentValue string
+	}
+}
+
+type Queue struct {
+	QueueName  string
+	Durable    bool
+	AutoDelete bool
+	Exclusive  bool
+	NoWait     bool
+	Arguments  []struct {
+		ArgumentKey   string
+		ArgumentValue string
+	}
 }
 
 // Real implementation, encapsulates a pointer to an amqp.Connection
@@ -34,45 +59,55 @@ func NewMessagingClient(connectionString string) *MessagingClient {
 	}
 }
 
-func (m *MessagingClient) Publish(body []byte, exchangeName string, exchangeType string) error {
+func (m *MessagingClient) Publish(body []byte, exchange *Exchange, queue *Queue) error {
 	if m.conn == nil {
 		panic("Tried to send message before connection was initialized. Don't do that.")
 	}
 	ch, err := m.conn.Channel() // Get a channel from the connection
+	if err != nil {
+		m.logger.Fatal("Cannot open RabbitMQ channel", err)
+	}
 	defer ch.Close()
+
 	err = ch.ExchangeDeclare(
-		exchangeName, // name of the exchange
-		exchangeType, // type
-		false,        // durable
-		false,        // delete when complete
-		false,        // internal
-		false,        // noWait
-		nil,          // arguments
+		exchange.ExchangeName, // name of the exchange
+		exchange.ExchangeType, // type
+		exchange.Durable,      // durable
+		exchange.AutoDelete,   // delete when complete
+		exchange.Internal,     // internal
+		exchange.Internal,     // noWait
+		nil,                   // arguments
 	)
 	failOnError(err, "Failed to register an Exchange")
 
-	queue, err := ch.QueueDeclare( // Declare a queue that will be created if not exists with some args
-		"",    // our queue name
-		false, // durable
-		false, // delete when unused
-		false, // exclusive
-		false, // no-wait
-		nil,   // arguments
+	_, err = ch.QueueDeclare( // Declare a queue that will be created if not exists with some args
+		queue.QueueName,  // our queue name
+		queue.Durable,    // durable
+		queue.AutoDelete, // delete when unused
+		queue.Exclusive,  // exclusive
+		queue.NoWait,     // no-wait
+		nil,              // arguments
 	)
+	if err != nil {
+		m.logger.Fatal("Failed declaring a queue", err)
+	}
 
 	err = ch.QueueBind(
-		queue.Name,   // name of the queue
-		exchangeName, // bindingKey
-		exchangeName, // sourceExchange
-		false,        // noWait
-		nil,          // arguments
+		queue.QueueName,       // name of the queue
+		exchange.ExchangeName, // bindingKey
+		exchange.ExchangeName, // sourceExchange
+		queue.NoWait,          // noWait
+		nil,                   // arguments
 	)
+	if err != nil {
+		m.logger.Fatal("Failed binding a queue", err)
+	}
 
 	err = ch.Publish( // Publishes a message onto the queue.
-		exchangeName, // exchange
-		exchangeName, // routing key      q.Name
-		false,        // mandatory
-		false,        // immediate
+		exchange.ExchangeName, // exchange
+		exchange.ExchangeName, // routing key      q.Name
+		false,                 // mandatory
+		false,                 // immediate
 		amqp.Publishing{
 			Body: body, // Our JSON body as []byte
 		})
@@ -85,6 +120,9 @@ func (m *MessagingClient) PublishOnQueue(body []byte, queueName string) error {
 		panic("Tried to send message before connection was initialized. Don't do that.")
 	}
 	ch, err := m.conn.Channel() // Get a channel from the connection
+	if err != nil {
+		m.logger.Fatal("Failed creating a channel", err)
+	}
 	defer ch.Close()
 
 	queue, err := ch.QueueDeclare( // Declare a queue that will be created if not exists with some args
@@ -95,6 +133,9 @@ func (m *MessagingClient) PublishOnQueue(body []byte, queueName string) error {
 		false,     // no-wait
 		nil,       // arguments
 	)
+	if err != nil {
+		m.logger.Fatal("Failed declaring a queue", err)
+	}
 
 	// Publishes a message onto the queue.
 	err = ch.Publish(
@@ -106,59 +147,62 @@ func (m *MessagingClient) PublishOnQueue(body []byte, queueName string) error {
 			ContentType: "application/json",
 			Body:        body, // Our JSON body as []byte
 		})
+	if err != nil {
+		m.logger.Fatal("Failed publishing a message", err)
+	}
 	// fmt.Printf("A message was sent to queue %v: %v", queueName, body)
 	return err
 }
 
-func (m *MessagingClient) Subscribe(exchangeName string, exchangeType string, consumerName string, handlerFunc func(amqp.Delivery)) error {
+func (m *MessagingClient) Subscribe(exchange *Exchange, queue *Queue, consumerName string, handlerFunc func(amqp.Delivery)) error {
 	ch, err := m.conn.Channel()
 	failOnError(err, "Failed to open a channel")
 	// defer ch.Close()
 
 	err = ch.ExchangeDeclare(
-		exchangeName, // name of the exchange
-		exchangeType, // type
-		false,        // durable
-		false,        // delete when complete
-		false,        // internal
-		false,        // noWait
-		nil,          // arguments
+		exchange.ExchangeName, // name of the exchange
+		exchange.ExchangeType, // type
+		exchange.Durable,      // durable
+		exchange.AutoDelete,   // delete when complete
+		exchange.Internal,     // internal
+		exchange.NoWait,       // noWait
+		nil,                   // arguments
 	)
 	failOnError(err, "Failed to register an Exchange")
 
 	fmt.Printf("declared Exchange, declaring Queue (%s)", "")
-	queue, err := ch.QueueDeclare(
-		"",    // name of the queue
-		false, // durable
-		false, // delete when usused
-		false, // exclusive
-		false, // noWait
-		nil,   // arguments
+	declaredQueue, err := ch.QueueDeclare(
+		queue.QueueName,  // name of the queue
+		queue.Durable,    // durable
+		queue.AutoDelete, // delete when usused
+		queue.Exclusive,  // exclusive
+		queue.Exclusive,  // noWait
+		nil,              // arguments
 	)
 	failOnError(err, "Failed to register an Queue")
 
 	fmt.Printf("declared Queue (%d messages, %d consumers), binding to Exchange (key '%s')",
-		queue.Messages, queue.Consumers, exchangeName)
+		declaredQueue.Messages, declaredQueue.Consumers, exchange.ExchangeName)
 
 	err = ch.QueueBind(
-		queue.Name,   // name of the queue
-		exchangeName, // bindingKey
-		exchangeName, // sourceExchange
-		false,        // noWait
-		nil,          // arguments
+		queue.QueueName,       // name of the queue
+		exchange.ExchangeName, // bindingKey
+		exchange.ExchangeName, // sourceExchange
+		exchange.NoWait,       // noWait
+		nil,                   // arguments
 	)
 	if err != nil {
 		return fmt.Errorf("Queue Bind: %s", err)
 	}
 
 	msgs, err := ch.Consume(
-		queue.Name,   // queue
-		consumerName, // consumer
-		true,         // auto-ack
-		false,        // exclusive
-		false,        // no-local
-		false,        // no-wait
-		nil,          // args
+		queue.QueueName, // queue
+		consumerName,    // consumer
+		true,            // auto-ack
+		queue.Exclusive, // exclusive
+		false,           // no-local
+		queue.NoWait,    // no-wait
+		nil,             // args
 	)
 	failOnError(err, "Failed to register a consumer")
 

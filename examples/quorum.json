@@ -1,0 +1,16 @@
+{
+  "exchangeName": "com.aveiga.perf-tester",
+  "exchangeType": "topic",
+  "durable": true,
+  "autoDelete": false,
+  "internal": false,
+  "noWait": false,
+  "queue": {
+    "queueName": "com.aveiga.perf-tester.dummy-queue",
+    "durable": true,
+    "autoDelete": false,
+    "exclusive": false,
+    "noWait": false,
+    "arguments": [{ "argumentKey": "x-queue-type", "argumentValue": "quorum" }]
+  }
+}
